@@ -147,12 +147,12 @@ h1 {
 .total-output {
   display: grid;
   flex: 1;
-  min-height: 82px;
-  border: 1px solid var(--border-strong);
-  border-radius: 18px;
-  padding: 14px 16px;
-  color: var(--text-primary);
-  background: var(--input);
+  min-height: 96px;
+  border: 1px solid var(--accent-border);
+  border-radius: 22px 22px 0 0;
+  padding: 18px 18px 16px;
+  color: #06101a;
+  background: linear-gradient(135deg, #4da3ff, #8ee9ff);
   outline: none;
   animation: output-in 180ms ease both;
 }
@@ -171,34 +171,36 @@ h1 {
 
 .total-output span,
 .total-output small {
-  color: var(--text-muted);
+  color: rgba(6, 16, 26, 0.72);
   font-size: 0.82rem;
 }
 
 .total-output strong {
   display: block;
   margin-top: 2px;
-  font-size: clamp(1.45rem, 5vw, 2.1rem);
+  font-size: clamp(1.85rem, 7vw, 3rem);
   line-height: 1;
   letter-spacing: -0.06em;
 }
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.stats-row article,
-.field-card {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 0;
+  overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-top: 0;
+  border-radius: 0 0 22px 22px;
   background: var(--surface-muted);
 }
 
 .stats-row article {
   padding: 14px;
+}
+
+.stats-row article + article {
+  border-left: 1px solid var(--border);
 }
 
 .stats-row span,
@@ -230,14 +232,26 @@ h1 {
 .fields-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 0;
   margin-top: 24px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface-muted);
 }
 
 .field-card {
   display: grid;
   gap: 12px;
-  padding: 15px;
+  padding: 16px;
+}
+
+.field-card:nth-child(2n) {
+  border-left: 1px solid var(--border);
+}
+
+.field-card:nth-child(n + 3) {
+  border-top: 1px solid var(--border);
 }
 
 .field-label span {
@@ -251,7 +265,7 @@ input {
 .field-card input {
   width: 100%;
   height: 52px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid transparent;
   border-radius: 16px;
   padding: 0 14px;
   color: var(--text-primary);
@@ -266,6 +280,53 @@ input {
 
 .field-card input:focus {
   border-color: var(--accent-border);
+  background: var(--input);
+}
+
+@media (min-width: 681px) {
+  .fields-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    padding: 0;
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+  }
+
+  .field-card {
+    gap: 14px;
+    padding: 18px;
+    background: transparent;
+  }
+
+  .field-card:nth-child(1),
+  .field-card:nth-child(2) {
+    grid-column: span 3;
+  }
+
+  .field-card:nth-child(n + 3) {
+    grid-column: span 2;
+  }
+
+  .field-card:nth-child(2n),
+  .field-card:nth-child(n + 3) {
+    border: 0;
+  }
+
+  .field-card:nth-child(2),
+  .field-card:nth-child(4),
+  .field-card:nth-child(5) {
+    border-left: 1px solid var(--border);
+  }
+
+  .field-card:nth-child(n + 3) {
+    border-top: 1px solid var(--border);
+  }
+
+  .field-card input {
+    height: 58px;
+    border-color: var(--border-strong);
+    font-size: 1.08rem;
+  }
 }
 
 button {
@@ -332,6 +393,16 @@ button:hover:not(:disabled) {
   .fields-grid,
   .stats-row {
     grid-template-columns: 1fr;
+  }
+
+  .stats-row article + article,
+  .field-card:nth-child(2n) {
+    border-left: 0;
+  }
+
+  .stats-row article + article,
+  .field-card + .field-card {
+    border-top: 1px solid var(--border);
   }
 
   .field-card {

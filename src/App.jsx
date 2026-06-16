@@ -14,6 +14,7 @@ const THEME_OPTIONS = [
 ];
 
 const THEME_SEQUENCE = THEME_OPTIONS.map((option) => option.key);
+const MOBILE_MEDIA_QUERY = '(max-width: 680px)';
 
 const DEFAULT_SETTINGS = {
   pricePerLitreE10: '1.8',
@@ -45,7 +46,7 @@ const FIELDS = [
     key: 'missingProportion',
     label: 'Reservoir vide',
     suffix: '%',
-    inputMode: 'decimal',
+    inputMode: 'numeric',
     min: '0',
     max: '100',
     step: '1',
@@ -64,7 +65,7 @@ const FIELDS = [
     key: 'proportion',
     label: 'Objectif E85',
     suffix: '%',
-    inputMode: 'decimal',
+    inputMode: 'numeric',
     min: '0',
     max: '100',
     step: '1',
@@ -231,6 +232,24 @@ function App() {
     }));
   }
 
+  function handleSettingChange(event, settingKey) {
+    const { value } = event.target;
+
+    updateSetting(settingKey, value);
+
+    if (
+      settingKey === 'missingProportion' &&
+      window.matchMedia(MOBILE_MEDIA_QUERY).matches &&
+      value.replace(/\D/g, '').length >= 2
+    ) {
+      event.target.blur();
+    }
+  }
+
+  function selectInputContent(event) {
+    event.target.select();
+  }
+
   function resetSettings() {
     setSettings(DEFAULT_SETTINGS);
   }
@@ -290,15 +309,10 @@ function App() {
                     <strong>{formatNumber(result.quantityE85, ' L')}</strong>
                     <small>{formatCurrency(result.priceE85)}</small>
                   </article>
-                  <article>
-                    <span>Budget</span>
-                    <strong>{formatCurrency(result.priceTotal)}</strong>
-                    <small>total</small>
-                  </article>
                 </div>
               </>
             ) : (
-              <p className="empty-result">Entre les valeurs pour calculer ton plein.</p>
+              <p className="empty-result">Entrez les valeurs pour calculer le plein.</p>
             )}
           </section>
 
@@ -318,7 +332,8 @@ function App() {
                   step={field.step}
                   value={settings[field.key]}
                   placeholder={field.placeholder}
-                  onChange={(event) => updateSetting(field.key, event.target.value)}
+                  onChange={(event) => handleSettingChange(event, field.key)}
+                  onFocus={selectInputContent}
                 />
               </label>
             ))}
