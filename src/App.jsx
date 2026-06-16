@@ -99,7 +99,9 @@ function getStoredSettings() {
       ...Object.fromEntries(
         Object.keys(DEFAULT_SETTINGS).map((key) => [
           key,
-          storedSettings[key] === undefined ? DEFAULT_SETTINGS[key] : String(storedSettings[key]),
+          storedSettings[key] === undefined
+            ? DEFAULT_SETTINGS[key]
+            : String(storedSettings[key]),
         ]),
       ),
     };
@@ -121,7 +123,9 @@ function resolveTheme(themeMode, systemTheme) {
 }
 
 function getThemeOption(themeMode) {
-  return THEME_OPTIONS.find((option) => option.key === themeMode) ?? THEME_OPTIONS[0];
+  return (
+    THEME_OPTIONS.find((option) => option.key === themeMode) ?? THEME_OPTIONS[0]
+  );
 }
 
 function toNumber(value) {
@@ -160,9 +164,13 @@ function calculateFuel(settings) {
   const proportion = toNumber(settings.proportion);
 
   if (
-    [pricePerLitreE10, pricePerLitreE85, missingProportion, tankCapacity, proportion].some(
-      (number) => number === null,
-    )
+    [
+      pricePerLitreE10,
+      pricePerLitreE85,
+      missingProportion,
+      tankCapacity,
+      proportion,
+    ].some((number) => number === null)
   ) {
     return null;
   }
@@ -215,7 +223,10 @@ function App() {
   }, [theme, themeMode]);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings));
+    window.localStorage.setItem(
+      STORAGE_KEYS.settings,
+      JSON.stringify(settings),
+    );
   }, [settings]);
 
   function cycleThemeMode() {
@@ -312,7 +323,9 @@ function App() {
                 </div>
               </>
             ) : (
-              <p className="empty-result">Entrez les valeurs pour calculer le plein.</p>
+              <p className="empty-result">
+                Entrez les valeurs pour calculer le plein.
+              </p>
             )}
           </section>
 
@@ -340,7 +353,11 @@ function App() {
           </div>
 
           <div className="actions-row">
-            <button className="primary-action" type="button" onClick={resetSettings}>
+            <button
+              className="primary-action"
+              type="button"
+              onClick={resetSettings}
+            >
               <RotateCcw aria-hidden="true" size={18} strokeWidth={2.5} />
               Reinitialiser
             </button>
