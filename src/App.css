@@ -293,6 +293,7 @@ input {
   }
 
   .field-card {
+    grid-template-rows: 1fr auto;
     gap: 14px;
     padding: 18px;
     background: transparent;
@@ -323,6 +324,7 @@ input {
   }
 
   .field-card input {
+    align-self: end;
     height: 58px;
     border-color: var(--border-strong);
     font-size: 1.08rem;
