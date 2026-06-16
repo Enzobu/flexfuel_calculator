@@ -1,0 +1,12 @@
+name: ${COMPOSE_PROJECT_NAME}
+
+services:
+  app:
+    image: ${COMPOSE_PROJECT_NAME}:latest
+    container_name: ${COMPOSE_PROJECT_NAME}_app
+    build:
+      context: .
+      target: prod
+    ports:
+      - '${PROD_PORT:-8080}:80'
+    restart: unless-stopped
