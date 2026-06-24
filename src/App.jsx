@@ -1,77 +1,148 @@
 import { useEffect, useState } from 'react';
-import { Fuel, Laptop, Moon, RotateCcw, Sun } from 'lucide-react';
-import './App.css';
+import { Fuel, Laptop, Moon, Sun } from 'lucide-react';
+import './App.scss';
 
 const STORAGE_KEYS = {
-  theme: 'flexfuel-calculator-theme',
   settings: 'flexfuel-calculator-settings',
+  theme: 'flexfuel-calculator-theme',
 };
 
-const THEME_OPTIONS = [
-  { key: 'system', label: 'Theme systeme', Icon: Laptop },
-  { key: 'light', label: 'Theme clair', Icon: Sun },
-  { key: 'dark', label: 'Theme sombre', Icon: Moon },
-];
-
-const THEME_SEQUENCE = THEME_OPTIONS.map((option) => option.key);
-const MOBILE_MEDIA_QUERY = '(max-width: 680px)';
-
 const DEFAULT_SETTINGS = {
-  pricePerLitreE10: '1.8',
-  pricePerLitreE85: '0.8',
+  e10Price: '1.8',
+  e85Price: '0.8',
   tankCapacity: '55',
-  proportion: '50',
+  e85Target: '50',
+};
+
+const EMPTY_SETTINGS = {
+  ...DEFAULT_SETTINGS,
+  missingProportion: '',
 };
 
 const FIELDS = [
   {
-    key: 'pricePerLitreE10',
+    key: 'e10Price',
     label: 'Prix E10',
     suffix: 'EUR/L',
+    type: 'number',
     inputMode: 'decimal',
     min: '0',
     step: '0.01',
-    placeholder: '-.--',
   },
   {
-    key: 'pricePerLitreE85',
+    key: 'e85Price',
     label: 'Prix E85',
     suffix: 'EUR/L',
+    type: 'number',
     inputMode: 'decimal',
     min: '0',
     step: '0.01',
-    placeholder: '-.--',
   },
   {
     key: 'missingProportion',
-    label: 'Reservoir vide',
+    label: 'Réservoir vide',
     suffix: '%',
+    type: 'number',
     inputMode: 'numeric',
     min: '0',
     max: '100',
     step: '1',
-    placeholder: '--',
   },
   {
     key: 'tankCapacity',
-    label: 'Capacite reservoir',
+    label: 'Capacité réservoir',
     suffix: 'L',
+    type: 'number',
     inputMode: 'decimal',
     min: '0',
     step: '0.1',
-    placeholder: '--',
   },
   {
-    key: 'proportion',
+    key: 'e85Target',
     label: 'Objectif E85',
     suffix: '%',
+    type: 'number',
     inputMode: 'numeric',
     min: '0',
     max: '100',
     step: '1',
-    placeholder: '--',
   },
 ];
+
+const THEME_OPTIONS = [
+  { key: 'system', label: 'Thème système', Icon: Laptop },
+  { key: 'light', label: 'Thème clair', Icon: Sun },
+  { key: 'dark', label: 'Thème sombre', Icon: Moon },
+];
+
+const THEME_SEQUENCE = THEME_OPTIONS.map((option) => option.key);
+function formatNumber(value) {
+  const fractionDigits = Number.isInteger(value) ? 0 : 2;
+
+  return new Intl.NumberFormat('fr-FR', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
+function formatCurrency(value) {
+  const fractionDigits = Number.isInteger(value) ? 0 : 2;
+
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
+function parseBusinessNumber(value) {
+  if (value === '' || value === null || value === undefined) return null;
+
+  const numberValue = Number(String(value).replace(',', '.'));
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function roundToTwoDecimals(value) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function formatVolume(value) {
+  return `${formatNumber(value)} L`;
+}
+
+function calculateFill(settings) {
+  const e10Price = parseBusinessNumber(settings.e10Price);
+  const e85Price = parseBusinessNumber(settings.e85Price);
+  const missingProportion = parseBusinessNumber(settings.missingProportion);
+  const tankCapacity = parseBusinessNumber(settings.tankCapacity);
+  const e85Target = parseBusinessNumber(settings.e85Target);
+
+  if (
+    [e10Price, e85Price, missingProportion, tankCapacity, e85Target].some(
+      (value) => value === null,
+    )
+  ) {
+    return null;
+  }
+
+  const missingRatio = missingProportion / 100;
+  const e85Ratio = e85Target / 100;
+  const totalVolume = missingRatio * tankCapacity;
+  const e85Volume = totalVolume * e85Ratio;
+  const e10Volume = totalVolume * (1 - e85Ratio);
+  const e85Cost = roundToTwoDecimals(e85Price * e85Volume);
+  const e10Cost = roundToTwoDecimals(e10Price * e10Volume);
+
+  return {
+    totalVolume: roundToTwoDecimals(totalVolume),
+    totalCost: roundToTwoDecimals(e85Cost + e10Cost),
+    e10Volume: roundToTwoDecimals(e10Volume),
+    e10Cost,
+    e85Volume: roundToTwoDecimals(e85Volume),
+    e85Cost,
+  };
+}
 
 function getStoredThemeMode() {
   if (typeof window === 'undefined') return 'system';
@@ -83,7 +154,7 @@ function getStoredThemeMode() {
 }
 
 function getStoredSettings() {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
+  if (typeof window === 'undefined') return EMPTY_SETTINGS;
 
   try {
     const storedSettings = JSON.parse(
@@ -91,22 +162,18 @@ function getStoredSettings() {
     );
 
     if (!storedSettings || typeof storedSettings !== 'object') {
-      return DEFAULT_SETTINGS;
+      return EMPTY_SETTINGS;
     }
 
-    return {
-      ...DEFAULT_SETTINGS,
-      ...Object.fromEntries(
-        Object.keys(DEFAULT_SETTINGS).map((key) => [
-          key,
-          storedSettings[key] === undefined
-            ? DEFAULT_SETTINGS[key]
-            : String(storedSettings[key]),
-        ]),
-      ),
-    };
+    return Object.keys(DEFAULT_SETTINGS).reduce(
+      (settings, key) => ({
+        ...settings,
+        [key]: String(storedSettings[key] ?? DEFAULT_SETTINGS[key]),
+      }),
+      { ...EMPTY_SETTINGS },
+    );
   } catch {
-    return DEFAULT_SETTINGS;
+    return EMPTY_SETTINGS;
   }
 }
 
@@ -128,72 +195,8 @@ function getThemeOption(themeMode) {
   );
 }
 
-function toNumber(value) {
-  if (value === null || value === undefined) return null;
-
-  const formattedValue = String(value).trim();
-  if (formattedValue === '') return null;
-
-  const number = Number(formattedValue.replace(',', '.'));
-  return Number.isFinite(number) ? number : null;
-}
-
-function round2(number) {
-  return Math.round(number * 100) / 100;
-}
-
-function formatNumber(number, unit = '') {
-  return `${new Intl.NumberFormat('fr-FR', {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: Number.isInteger(number) ? 0 : 2,
-  }).format(number)}${unit}`;
-}
-
-function formatCurrency(number) {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(number);
-}
-
-function calculateFuel(settings) {
-  const pricePerLitreE10 = toNumber(settings.pricePerLitreE10);
-  const pricePerLitreE85 = toNumber(settings.pricePerLitreE85);
-  const missingProportion = toNumber(settings.missingProportion);
-  const tankCapacity = toNumber(settings.tankCapacity);
-  const proportion = toNumber(settings.proportion);
-
-  if (
-    [
-      pricePerLitreE10,
-      pricePerLitreE85,
-      missingProportion,
-      tankCapacity,
-      proportion,
-    ].some((number) => number === null)
-  ) {
-    return null;
-  }
-
-  const missingRatio = missingProportion / 100;
-  const e85Ratio = proportion / 100;
-
-  const quantityE85 = missingRatio * tankCapacity * e85Ratio;
-  const quantityE10 = missingRatio * tankCapacity * (1 - e85Ratio);
-  const quantityTotal = missingRatio * tankCapacity;
-
-  const priceE85 = round2(pricePerLitreE85 * quantityE85);
-  const priceE10 = round2(pricePerLitreE10 * quantityE10);
-  const priceTotal = round2(priceE85 + priceE10);
-
-  return {
-    quantityE85: round2(quantityE85),
-    quantityE10: round2(quantityE10),
-    quantityTotal: round2(quantityTotal),
-    priceE85,
-    priceE10,
-    priceTotal,
-  };
+function isMobileViewport() {
+  return window.matchMedia('(max-width: 680px)').matches;
 }
 
 function App() {
@@ -201,10 +204,10 @@ function App() {
   const [systemTheme, setSystemTheme] = useState(getSystemTheme);
   const [settings, setSettings] = useState(getStoredSettings);
 
+  const result = calculateFill(settings);
   const theme = resolveTheme(themeMode, systemTheme);
   const themeOption = getThemeOption(themeMode);
   const ThemeIcon = themeOption.Icon;
-  const result = calculateFuel(settings);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -236,43 +239,37 @@ function App() {
     setThemeMode(THEME_SEQUENCE[nextIndex]);
   }
 
-  function updateSetting(settingKey, value) {
+  function updateSetting(key, value, event) {
     setSettings((currentSettings) => ({
       ...currentSettings,
-      [settingKey]: value,
+      [key]: value,
     }));
-  }
-
-  function handleSettingChange(event, settingKey) {
-    const { value } = event.target;
-
-    updateSetting(settingKey, value);
 
     if (
-      settingKey === 'missingProportion' &&
-      window.matchMedia(MOBILE_MEDIA_QUERY).matches &&
-      value.replace(/\D/g, '').length >= 2
+      key === 'missingProportion' &&
+      value.length >= 2 &&
+      isMobileViewport()
     ) {
-      event.target.blur();
+      event.currentTarget.blur();
     }
   }
 
-  function selectInputContent(event) {
-    event.target.select();
+  function resetSettings() {
+    setSettings(EMPTY_SETTINGS);
   }
 
-  function resetSettings() {
-    setSettings(DEFAULT_SETTINGS);
+  function selectFieldContent(event) {
+    event.currentTarget.select();
   }
 
   return (
     <main className="app-shell">
-      <section className="calculator-layout" aria-label="Calculateur flexfuel">
+      <section className="generator-layout" aria-label="Calculateur Flexfuel">
         <section className="tool-card">
           <nav className="topbar" aria-label="Navigation principale">
             <div className="brand-mark" aria-label="Flexfuel">
               <span className="brand-icon">
-                <Fuel aria-hidden="true" size={19} strokeWidth={2.7} />
+                <Fuel aria-hidden="true" size={19} strokeWidth={2.6} />
               </span>
               <span>Flexfuel</span>
             </div>
@@ -281,7 +278,7 @@ function App() {
               className="theme-toggle"
               type="button"
               onClick={cycleThemeMode}
-              aria-label={`${themeOption.label}. Cliquer pour changer de theme`}
+              aria-label={`${themeOption.label}. Cliquer pour changer de thème`}
               title={themeOption.label}
             >
               <span className="theme-toggle-icon" key={themeMode}>
@@ -292,33 +289,59 @@ function App() {
 
           <header className="card-heading">
             <div>
-              <p className="eyebrow">Fuel utility</p>
-              <h1>Calculateur E10 / E85</h1>
+              <p className="eyebrow">Calculateur E10 / E85</p>
+              <h1>Prépare ton plein flexfuel</h1>
             </div>
           </header>
 
-          <section className="fuel-output" aria-live="polite">
-            <label htmlFor="total-output">Resultat</label>
+          <div className="fields-grid">
+            {FIELDS.map((field) => (
+              <label className="field-card" key={field.key} htmlFor={field.key}>
+                <span className="field-label">{field.label}</span>
+                <span className="field-control">
+                  <input
+                    id={field.key}
+                    type={field.type}
+                    inputMode={field.inputMode}
+                    min={field.min}
+                    max={field.max}
+                    step={field.step}
+                    value={settings[field.key]}
+                    onChange={(event) =>
+                      updateSetting(field.key, event.target.value, event)
+                    }
+                    onFocus={selectFieldContent}
+                  />
+                  <span>{field.suffix}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <section className="result-panel" aria-live="polite">
             {result ? (
               <>
-                <div className="output-row">
-                  <div className="total-output" id="total-output">
-                    <span>Total a mettre</span>
-                    <strong>{formatNumber(result.quantityTotal, ' L')}</strong>
-                    <small>{formatCurrency(result.priceTotal)}</small>
-                  </div>
+                <div className="result-main">
+                  <article>
+                    <span>Volume total à mettre</span>
+                    <strong>{formatVolume(result.totalVolume)}</strong>
+                  </article>
+                  <article>
+                    <span>Coût total</span>
+                    <strong>{formatCurrency(result.totalCost)}</strong>
+                  </article>
                 </div>
 
-                <div className="stats-row" aria-label="Apercu du plein">
+                <div className="fuel-breakdown">
                   <article>
                     <span>E10</span>
-                    <strong>{formatNumber(result.quantityE10, ' L')}</strong>
-                    <small>{formatCurrency(result.priceE10)}</small>
+                    <strong>{formatVolume(result.e10Volume)}</strong>
+                    <small>{formatCurrency(result.e10Cost)}</small>
                   </article>
                   <article>
                     <span>E85</span>
-                    <strong>{formatNumber(result.quantityE85, ' L')}</strong>
-                    <small>{formatCurrency(result.priceE85)}</small>
+                    <strong>{formatVolume(result.e85Volume)}</strong>
+                    <small>{formatCurrency(result.e85Cost)}</small>
                   </article>
                 </div>
               </>
@@ -329,37 +352,13 @@ function App() {
             )}
           </section>
 
-          <div className="fields-grid">
-            {FIELDS.map((field) => (
-              <label className="field-card" key={field.key} htmlFor={field.key}>
-                <span className="field-label">
-                  <span>{field.label}</span>
-                  <small>{field.suffix}</small>
-                </span>
-                <input
-                  id={field.key}
-                  type="number"
-                  inputMode={field.inputMode}
-                  min={field.min}
-                  max={field.max}
-                  step={field.step}
-                  value={settings[field.key]}
-                  placeholder={field.placeholder}
-                  onChange={(event) => handleSettingChange(event, field.key)}
-                  onFocus={selectInputContent}
-                />
-              </label>
-            ))}
-          </div>
-
           <div className="actions-row">
             <button
-              className="primary-action"
+              className="secondary-action"
               type="button"
               onClick={resetSettings}
             >
-              <RotateCcw aria-hidden="true" size={18} strokeWidth={2.5} />
-              Reinitialiser
+              Réinitialiser
             </button>
           </div>
         </section>
