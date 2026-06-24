@@ -1,11 +1,36 @@
 import { useEffect, useState } from 'react';
-import { Fuel, Laptop, Moon, RotateCcw, Sun } from 'lucide-react';
-import './App.css';
+import { Check, Laptop, Moon, Sun } from 'lucide-react';
+import './App.scss';
+
+const MIN_LENGTH = 4;
+const MAX_LENGTH = 128;
+const DEFAULT_LENGTH = 24;
+const COPY_FEEDBACK_DELAY = 1500;
 
 const STORAGE_KEYS = {
-  theme: 'flexfuel-calculator-theme',
-  settings: 'flexfuel-calculator-settings',
+  theme: 'password-generator-theme',
 };
+
+const CHARSETS = {
+  lower: 'abcdefghijklmnopqrstuvwxyz'.split(''),
+  upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''),
+  number: '0123456789'.split(''),
+  special: ['&', '#', '@', '$', '*', '%', '!', '?'],
+};
+
+const DEFAULT_OPTIONS = {
+  lower: true,
+  upper: true,
+  number: true,
+  special: true,
+};
+
+const PASSWORD_OPTIONS = [
+  { key: 'lower', label: 'Minuscules', sample: 'a-z' },
+  { key: 'upper', label: 'Majuscules', sample: 'A-Z' },
+  { key: 'number', label: 'Chiffres', sample: '0-9' },
+  { key: 'special', label: 'Speciaux', sample: '& # @' },
+];
 
 const THEME_OPTIONS = [
   { key: 'system', label: 'Theme systeme', Icon: Laptop },
@@ -14,64 +39,10 @@ const THEME_OPTIONS = [
 ];
 
 const THEME_SEQUENCE = THEME_OPTIONS.map((option) => option.key);
-const MOBILE_MEDIA_QUERY = '(max-width: 680px)';
 
-const DEFAULT_SETTINGS = {
-  pricePerLitreE10: '1.8',
-  pricePerLitreE85: '0.8',
-  tankCapacity: '55',
-  proportion: '50',
-};
-
-const FIELDS = [
-  {
-    key: 'pricePerLitreE10',
-    label: 'Prix E10',
-    suffix: 'EUR/L',
-    inputMode: 'decimal',
-    min: '0',
-    step: '0.01',
-    placeholder: '-.--',
-  },
-  {
-    key: 'pricePerLitreE85',
-    label: 'Prix E85',
-    suffix: 'EUR/L',
-    inputMode: 'decimal',
-    min: '0',
-    step: '0.01',
-    placeholder: '-.--',
-  },
-  {
-    key: 'missingProportion',
-    label: 'Reservoir vide',
-    suffix: '%',
-    inputMode: 'numeric',
-    min: '0',
-    max: '100',
-    step: '1',
-    placeholder: '--',
-  },
-  {
-    key: 'tankCapacity',
-    label: 'Capacite reservoir',
-    suffix: 'L',
-    inputMode: 'decimal',
-    min: '0',
-    step: '0.1',
-    placeholder: '--',
-  },
-  {
-    key: 'proportion',
-    label: 'Objectif E85',
-    suffix: '%',
-    inputMode: 'numeric',
-    min: '0',
-    max: '100',
-    step: '1',
-    placeholder: '--',
-  },
-];
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
 function getStoredThemeMode() {
   if (typeof window === 'undefined') return 'system';
@@ -80,34 +51,6 @@ function getStoredThemeMode() {
   return THEME_OPTIONS.some((option) => option.key === themeMode)
     ? themeMode
     : 'system';
-}
-
-function getStoredSettings() {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
-
-  try {
-    const storedSettings = JSON.parse(
-      window.localStorage.getItem(STORAGE_KEYS.settings),
-    );
-
-    if (!storedSettings || typeof storedSettings !== 'object') {
-      return DEFAULT_SETTINGS;
-    }
-
-    return {
-      ...DEFAULT_SETTINGS,
-      ...Object.fromEntries(
-        Object.keys(DEFAULT_SETTINGS).map((key) => [
-          key,
-          storedSettings[key] === undefined
-            ? DEFAULT_SETTINGS[key]
-            : String(storedSettings[key]),
-        ]),
-      ),
-    };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
 }
 
 function getSystemTheme() {
@@ -122,89 +65,119 @@ function resolveTheme(themeMode, systemTheme) {
   return themeMode === 'system' ? systemTheme : themeMode;
 }
 
+function getEnabledCategories(options) {
+  return PASSWORD_OPTIONS.filter((option) => options[option.key]).map(
+    (option) => option.key,
+  );
+}
+
+function getSecureRandomInt(max) {
+  if (max <= 0) return 0;
+
+  if (!window.crypto?.getRandomValues) {
+    return Math.floor(Math.random() * max);
+  }
+
+  const randomValue = new Uint32Array(1);
+  const limit = 0xffffffff - (0xffffffff % max);
+
+  do {
+    window.crypto.getRandomValues(randomValue);
+  } while (randomValue[0] >= limit);
+
+  return randomValue[0] % max;
+}
+
+function pickRandom(characters) {
+  return characters[getSecureRandomInt(characters.length)];
+}
+
+function shuffleCharacters(characters) {
+  const shuffled = [...characters];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = getSecureRandomInt(index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+
+  return shuffled;
+}
+
+function generatePassword(length, options) {
+  const categories = getEnabledCategories(options);
+  if (categories.length === 0) return '';
+
+  const safeLength = clamp(
+    Number(length) || DEFAULT_LENGTH,
+    MIN_LENGTH,
+    MAX_LENGTH,
+  );
+  const pool = categories.flatMap((category) => CHARSETS[category]);
+  const requiredCharacters = categories.map((category) =>
+    pickRandom(CHARSETS[category]),
+  );
+  const remainingLength = safeLength - requiredCharacters.length;
+  const extraCharacters = Array.from({ length: remainingLength }, () =>
+    pickRandom(pool),
+  );
+
+  return shuffleCharacters([...requiredCharacters, ...extraCharacters]).join(
+    '',
+  );
+}
+
+function getStrengthScore(length, enabledCategoryCount) {
+  if (enabledCategoryCount === 0) return 0;
+
+  return Math.min(
+    100,
+    Math.round((length / MAX_LENGTH) * 55 + enabledCategoryCount * 11.25),
+  );
+}
+
+function getCopyLabel(copyStatus) {
+  if (copyStatus === 'error') return 'Erreur';
+
+  return 'Copier';
+}
+
 function getThemeOption(themeMode) {
   return (
     THEME_OPTIONS.find((option) => option.key === themeMode) ?? THEME_OPTIONS[0]
   );
 }
 
-function toNumber(value) {
-  if (value === null || value === undefined) return null;
-
-  const formattedValue = String(value).trim();
-  if (formattedValue === '') return null;
-
-  const number = Number(formattedValue.replace(',', '.'));
-  return Number.isFinite(number) ? number : null;
-}
-
-function round2(number) {
-  return Math.round(number * 100) / 100;
-}
-
-function formatNumber(number, unit = '') {
-  return `${new Intl.NumberFormat('fr-FR', {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: Number.isInteger(number) ? 0 : 2,
-  }).format(number)}${unit}`;
-}
-
-function formatCurrency(number) {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(number);
-}
-
-function calculateFuel(settings) {
-  const pricePerLitreE10 = toNumber(settings.pricePerLitreE10);
-  const pricePerLitreE85 = toNumber(settings.pricePerLitreE85);
-  const missingProportion = toNumber(settings.missingProportion);
-  const tankCapacity = toNumber(settings.tankCapacity);
-  const proportion = toNumber(settings.proportion);
-
-  if (
-    [
-      pricePerLitreE10,
-      pricePerLitreE85,
-      missingProportion,
-      tankCapacity,
-      proportion,
-    ].some((number) => number === null)
-  ) {
-    return null;
-  }
-
-  const missingRatio = missingProportion / 100;
-  const e85Ratio = proportion / 100;
-
-  const quantityE85 = missingRatio * tankCapacity * e85Ratio;
-  const quantityE10 = missingRatio * tankCapacity * (1 - e85Ratio);
-  const quantityTotal = missingRatio * tankCapacity;
-
-  const priceE85 = round2(pricePerLitreE85 * quantityE85);
-  const priceE10 = round2(pricePerLitreE10 * quantityE10);
-  const priceTotal = round2(priceE85 + priceE10);
-
-  return {
-    quantityE85: round2(quantityE85),
-    quantityE10: round2(quantityE10),
-    quantityTotal: round2(quantityTotal),
-    priceE85,
-    priceE10,
-    priceTotal,
-  };
+function fallbackCopy(value) {
+  const temporaryInput = document.createElement('input');
+  temporaryInput.style.position = 'absolute';
+  temporaryInput.style.left = '-9999px';
+  temporaryInput.value = value;
+  document.body.appendChild(temporaryInput);
+  temporaryInput.select();
+  document.execCommand('copy');
+  document.body.removeChild(temporaryInput);
 }
 
 function App() {
   const [themeMode, setThemeMode] = useState(getStoredThemeMode);
   const [systemTheme, setSystemTheme] = useState(getSystemTheme);
-  const [settings, setSettings] = useState(getStoredSettings);
+  const [length, setLength] = useState(DEFAULT_LENGTH);
+  const [options, setOptions] = useState(DEFAULT_OPTIONS);
+  const [password, setPassword] = useState(() =>
+    generatePassword(DEFAULT_LENGTH, DEFAULT_OPTIONS),
+  );
+  const [copyStatus, setCopyStatus] = useState('idle');
 
   const theme = resolveTheme(themeMode, systemTheme);
   const themeOption = getThemeOption(themeMode);
   const ThemeIcon = themeOption.Icon;
-  const result = calculateFuel(settings);
+  const enabledCategories = getEnabledCategories(options);
+  const hasOptions = enabledCategories.length > 0;
+  const strengthScore = getStrengthScore(length, enabledCategories.length);
+  const strengthHue = Math.round((strengthScore / 100) * 140);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -223,11 +196,23 @@ function App() {
   }, [theme, themeMode]);
 
   useEffect(() => {
-    window.localStorage.setItem(
-      STORAGE_KEYS.settings,
-      JSON.stringify(settings),
+    if (copyStatus === 'idle') return undefined;
+
+    const timeoutId = window.setTimeout(
+      () => setCopyStatus('idle'),
+      COPY_FEEDBACK_DELAY,
     );
-  }, [settings]);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [copyStatus]);
+
+  function updateLength(value) {
+    const nextLength = clamp(Number(value), MIN_LENGTH, MAX_LENGTH);
+
+    setLength(nextLength);
+    setPassword(generatePassword(nextLength, options));
+    setCopyStatus('idle');
+  }
 
   function cycleThemeMode() {
     const currentIndex = THEME_SEQUENCE.indexOf(themeMode);
@@ -236,45 +221,56 @@ function App() {
     setThemeMode(THEME_SEQUENCE[nextIndex]);
   }
 
-  function updateSetting(settingKey, value) {
-    setSettings((currentSettings) => ({
-      ...currentSettings,
-      [settingKey]: value,
-    }));
+  function toggleOption(optionKey) {
+    const nextOptions = {
+      ...options,
+      [optionKey]: !options[optionKey],
+    };
+
+    setOptions(nextOptions);
+    setPassword(generatePassword(length, nextOptions));
+    setCopyStatus('idle');
   }
 
-  function handleSettingChange(event, settingKey) {
-    const { value } = event.target;
+  function resetGenerator() {
+    setLength(DEFAULT_LENGTH);
+    setOptions(DEFAULT_OPTIONS);
+    setPassword(generatePassword(DEFAULT_LENGTH, DEFAULT_OPTIONS));
+    setCopyStatus('idle');
+  }
 
-    updateSetting(settingKey, value);
+  function regeneratePassword() {
+    setPassword(generatePassword(length, options));
+    setCopyStatus('idle');
+  }
 
-    if (
-      settingKey === 'missingProportion' &&
-      window.matchMedia(MOBILE_MEDIA_QUERY).matches &&
-      value.replace(/\D/g, '').length >= 2
-    ) {
-      event.target.blur();
+  async function copyPassword() {
+    if (!password) return;
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(password);
+      } else {
+        fallbackCopy(password);
+      }
+
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('error');
     }
-  }
-
-  function selectInputContent(event) {
-    event.target.select();
-  }
-
-  function resetSettings() {
-    setSettings(DEFAULT_SETTINGS);
   }
 
   return (
     <main className="app-shell">
-      <section className="calculator-layout" aria-label="Calculateur flexfuel">
+      <section
+        className="generator-layout"
+        aria-label="Generateur de mot de passe"
+      >
         <section className="tool-card">
           <nav className="topbar" aria-label="Navigation principale">
-            <div className="brand-mark" aria-label="Flexfuel">
-              <span className="brand-icon">
-                <Fuel aria-hidden="true" size={19} strokeWidth={2.7} />
-              </span>
-              <span>Flexfuel</span>
+            <div className="brand-mark" aria-label="Passforge">
+              <span className="brand-icon">P</span>
+              <span>Passforge</span>
             </div>
 
             <button
@@ -292,63 +288,106 @@ function App() {
 
           <header className="card-heading">
             <div>
-              <p className="eyebrow">Fuel utility</p>
-              <h1>Calculateur E10 / E85</h1>
+              <p className="eyebrow">Secure utility</p>
+              <h1>Générateur de mot de passe</h1>
             </div>
           </header>
 
-          <section className="fuel-output" aria-live="polite">
-            <label htmlFor="total-output">Resultat</label>
-            {result ? (
-              <>
-                <div className="output-row">
-                  <div className="total-output" id="total-output">
-                    <span>Total a mettre</span>
-                    <strong>{formatNumber(result.quantityTotal, ' L')}</strong>
-                    <small>{formatCurrency(result.priceTotal)}</small>
-                  </div>
-                </div>
-
-                <div className="stats-row" aria-label="Apercu du plein">
-                  <article>
-                    <span>E10</span>
-                    <strong>{formatNumber(result.quantityE10, ' L')}</strong>
-                    <small>{formatCurrency(result.priceE10)}</small>
-                  </article>
-                  <article>
-                    <span>E85</span>
-                    <strong>{formatNumber(result.quantityE85, ' L')}</strong>
-                    <small>{formatCurrency(result.priceE85)}</small>
-                  </article>
-                </div>
-              </>
-            ) : (
-              <p className="empty-result">
-                Entrez les valeurs pour calculer le plein.
-              </p>
-            )}
-          </section>
-
-          <div className="fields-grid">
-            {FIELDS.map((field) => (
-              <label className="field-card" key={field.key} htmlFor={field.key}>
-                <span className="field-label">
-                  <span>{field.label}</span>
-                  <small>{field.suffix}</small>
+          <div className="password-output">
+            <label htmlFor="password">Mot de passe</label>
+            <div className="output-row">
+              <input
+                id="password"
+                value={password}
+                readOnly
+                placeholder="Active au moins une option"
+              />
+              <button
+                className={`copy-button ${copyStatus}`}
+                type="button"
+                onClick={copyPassword}
+                disabled={!password}
+                aria-label={
+                  copyStatus === 'copied'
+                    ? 'Mot de passe copie'
+                    : 'Copier le mot de passe'
+                }
+              >
+                <span className="copy-button-content" key={copyStatus}>
+                  {copyStatus === 'copied' ? (
+                    <Check aria-hidden="true" size={22} strokeWidth={2.8} />
+                  ) : (
+                    getCopyLabel(copyStatus)
+                  )}
                 </span>
-                <input
-                  id={field.key}
-                  type="number"
-                  inputMode={field.inputMode}
-                  min={field.min}
-                  max={field.max}
-                  step={field.step}
-                  value={settings[field.key]}
-                  placeholder={field.placeholder}
-                  onChange={(event) => handleSettingChange(event, field.key)}
-                  onFocus={selectInputContent}
-                />
-              </label>
+              </button>
+            </div>
+          </div>
+
+          {!hasOptions && (
+            <p className="warning">
+              Selectionnez au moins une famille de caractères.
+            </p>
+          )}
+
+          <div
+            className="strength-meter"
+            aria-label={`Score de securite ${strengthScore}%`}
+          >
+            <span
+              className="strength-fill"
+              style={{
+                width: `${strengthScore}%`,
+                backgroundColor: `hsl(${strengthHue} 78% 50%)`,
+              }}
+            />
+          </div>
+
+          <div className="stats-row" aria-label="Apercu des indicateurs">
+            <article>
+              <span>Longueur</span>
+              <strong>{length}</strong>
+            </article>
+            <article>
+              <span>Groupes</span>
+              <strong>{enabledCategories.length}/4</strong>
+            </article>
+            <article>
+              <span>Score</span>
+              <strong>{hasOptions ? `${strengthScore}%` : '--'}</strong>
+            </article>
+          </div>
+
+          <div className="control-block">
+            <div className="control-label">
+              <label htmlFor="length">Longueur</label>
+              <span>{length} caracteres</span>
+            </div>
+            <input
+              id="length"
+              type="range"
+              min={MIN_LENGTH}
+              max={MAX_LENGTH}
+              value={length}
+              onChange={(event) => updateLength(event.target.value)}
+            />
+          </div>
+
+          <div className="options-grid">
+            {PASSWORD_OPTIONS.map((option) => (
+              <button
+                className={`option-card ${options[option.key] ? 'selected' : ''}`}
+                key={option.key}
+                type="button"
+                onClick={() => toggleOption(option.key)}
+                aria-pressed={options[option.key]}
+              >
+                <span>
+                  <strong>{option.label}</strong>
+                  <small>{option.sample}</small>
+                </span>
+                <span className="option-toggle" aria-hidden="true" />
+              </button>
             ))}
           </div>
 
@@ -356,9 +395,16 @@ function App() {
             <button
               className="primary-action"
               type="button"
-              onClick={resetSettings}
+              onClick={regeneratePassword}
+              disabled={!hasOptions}
             >
-              <RotateCcw aria-hidden="true" size={18} strokeWidth={2.5} />
+              Générer
+            </button>
+            <button
+              className="secondary-action"
+              type="button"
+              onClick={resetGenerator}
+            >
               Reinitialiser
             </button>
           </div>
