@@ -76,16 +76,25 @@ const THEME_OPTIONS = [
 ];
 
 const THEME_SEQUENCE = THEME_OPTIONS.map((option) => option.key);
-const numberFormatter = new Intl.NumberFormat('fr-FR', {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
-const currencyFormatter = new Intl.NumberFormat('fr-FR', {
-  style: 'currency',
-  currency: 'EUR',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 2,
-});
+function formatNumber(value) {
+  const fractionDigits = Number.isInteger(value) ? 0 : 2;
+
+  return new Intl.NumberFormat('fr-FR', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
+
+function formatCurrency(value) {
+  const fractionDigits = Number.isInteger(value) ? 0 : 2;
+
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(value);
+}
 
 function parseBusinessNumber(value) {
   if (value === '' || value === null || value === undefined) return null;
@@ -99,11 +108,7 @@ function roundToTwoDecimals(value) {
 }
 
 function formatVolume(value) {
-  return `${numberFormatter.format(value)} L`;
-}
-
-function formatCurrency(value) {
-  return currencyFormatter.format(value);
+  return `${formatNumber(value)} L`;
 }
 
 function calculateFill(settings) {
@@ -123,20 +128,18 @@ function calculateFill(settings) {
 
   const missingRatio = missingProportion / 100;
   const e85Ratio = e85Target / 100;
-  const totalVolume = roundToTwoDecimals(missingRatio * tankCapacity);
-  const e85Volume = roundToTwoDecimals(missingRatio * tankCapacity * e85Ratio);
-  const e10Volume = roundToTwoDecimals(
-    missingRatio * tankCapacity * (1 - e85Ratio),
-  );
+  const totalVolume = missingRatio * tankCapacity;
+  const e85Volume = totalVolume * e85Ratio;
+  const e10Volume = totalVolume * (1 - e85Ratio);
   const e85Cost = roundToTwoDecimals(e85Price * e85Volume);
   const e10Cost = roundToTwoDecimals(e10Price * e10Volume);
 
   return {
-    totalVolume,
+    totalVolume: roundToTwoDecimals(totalVolume),
     totalCost: roundToTwoDecimals(e85Cost + e10Cost),
-    e10Volume,
+    e10Volume: roundToTwoDecimals(e10Volume),
     e10Cost,
-    e85Volume,
+    e85Volume: roundToTwoDecimals(e85Volume),
     e85Cost,
   };
 }
