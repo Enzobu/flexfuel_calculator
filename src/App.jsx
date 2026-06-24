@@ -226,7 +226,10 @@ function App() {
   }, [theme, themeMode]);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings));
+    window.localStorage.setItem(
+      STORAGE_KEYS.settings,
+      JSON.stringify(settings),
+    );
   }, [settings]);
 
   function cycleThemeMode() {
